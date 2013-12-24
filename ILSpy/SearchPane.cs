@@ -17,6 +17,7 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -112,7 +113,85 @@ namespace ICSharpCode.ILSpy
 		{
 			StartSearch(this.SearchTerm);
 		}
-		
+      void ButtonExactMatch_Click(object sender, RoutedEventArgs e)
+      {
+         StartSearch(this.SearchTerm);
+      }
+
+      GridViewColumnHeader _lastHeaderClicked = null;
+      ListSortDirection _lastDirection = ListSortDirection.Ascending;
+      void GridViewColumnHeaderClickedHandler(object sender,RoutedEventArgs e)
+      {
+         GridViewColumnHeader headerClicked = e.OriginalSource as GridViewColumnHeader;
+         ListSortDirection direction;
+
+         if (headerClicked != null)
+         {
+            if (headerClicked.Role != GridViewColumnHeaderRole.Padding)
+            {
+               if (headerClicked != _lastHeaderClicked)
+               {
+                  direction = ListSortDirection.Ascending;
+               }
+               else
+               {
+                  if (_lastDirection == ListSortDirection.Ascending)
+                  {
+                     direction = ListSortDirection.Descending;
+                  }
+                  else
+                  {
+                     direction = ListSortDirection.Ascending;
+                  }
+               }
+
+               var header = headerClicked.Column.Header;
+               string headerName = header as string;
+               if (string.IsNullOrWhiteSpace(headerName))
+               {
+                  GridViewColumnHeader gHeader = header as GridViewColumnHeader;
+                  headerName = gHeader.Name;
+                  if(string.IsNullOrWhiteSpace(headerName))
+                     headerName = gHeader.Content.ToString();
+               }
+               if (string.IsNullOrWhiteSpace(headerName))
+                  return;
+               Sort(headerName, direction);
+
+               if (direction == ListSortDirection.Ascending)
+               {
+                  headerClicked.Column.HeaderTemplate =
+                    Resources["HeaderTemplateArrowUp"] as DataTemplate;
+               }
+               else
+               {
+                  headerClicked.Column.HeaderTemplate =
+                    Resources["HeaderTemplateArrowDown"] as DataTemplate;
+               }
+
+               // Remove arrow from previously sorted header 
+               if (_lastHeaderClicked != null && _lastHeaderClicked != headerClicked)
+               {
+                  _lastHeaderClicked.Column.HeaderTemplate = null;
+               }
+
+
+               _lastHeaderClicked = headerClicked;
+               _lastDirection = direction;
+            }
+         }
+      }
+
+      private void Sort(string sortBy, ListSortDirection direction)
+      {
+         var dataView = System.Windows.Data.CollectionViewSource.GetDefaultView(listView.ItemsSource) as System.Windows.Data.ListCollectionView;
+         dataView.SortDescriptions.Clear();
+
+         SortDescription sd = new SortDescription(sortBy, direction);
+         dataView.SortDescriptions.Add(sd);
+         dataView.Refresh();
+      }
+
 		void StartSearch(string searchTerm)
 		{
 			if (currentSearch != null) {
@@ -120,11 +199,12 @@ namespace ICSharpCode.ILSpy
 			}
 			if (string.IsNullOrEmpty(searchTerm)) {
 				currentSearch = null;
-				listBox.ItemsSource = null;
+            listView.ItemsSource = null;
 			} else {
 				MainWindow mainWindow = MainWindow.Instance;
 				currentSearch = new RunningSearch(mainWindow.CurrentAssemblyList.GetAssemblies(), searchTerm, searchModeComboBox.SelectedIndex, mainWindow.CurrentLanguage);
-				listBox.ItemsSource = currentSearch.Results;
+			   currentSearch.ExactMatch = buttonExactMatch.IsChecked.GetValueOrDefault(false);
+			   listView.ItemsSource = currentSearch.Results;
 				new Thread(currentSearch.Run).Start();
 			}
 		}
@@ -150,7 +230,7 @@ namespace ICSharpCode.ILSpy
 		
 		void JumpToSelectedItem()
 		{
-			SearchResult result = listBox.SelectedItem as SearchResult;
+			SearchResult result = listView.SelectedItem as SearchResult;
 			if (result != null) {
 				MainWindow.Instance.JumpToReference(result.Member);
 			}
@@ -173,10 +253,10 @@ namespace ICSharpCode.ILSpy
 		
 		void SearchBox_PreviewKeyDown(object sender, KeyEventArgs e)
 		{
-			if (e.Key == Key.Down && listBox.HasItems) {
+			if (e.Key == Key.Down && listView.HasItems) {
 				e.Handled = true;
-				listBox.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
-				listBox.SelectedIndex = 0;
+				listView.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+				listView.SelectedIndex = 0;
 			}
 		}
 		
@@ -193,6 +273,8 @@ namespace ICSharpCode.ILSpy
 			
 			TypeCode searchTermLiteralType = TypeCode.Empty;
 			object searchTermLiteralValue;
+
+         public bool ExactMatch { get; set; }
 			
 			public RunningSearch(LoadedAssembly[] assemblies, string searchTerm, int searchMode, Language language)
 			{
@@ -250,7 +332,7 @@ namespace ICSharpCode.ILSpy
 						CancellationToken cancellationToken = cts.Token;
 						foreach (TypeDefinition type in module.Types) {
 							cancellationToken.ThrowIfCancellationRequested();
-							PerformSearch(type);
+							PerformSearch(type, module);
 						}
 					}
 				} catch (OperationCanceledException) {
@@ -276,6 +358,13 @@ namespace ICSharpCode.ILSpy
 			
 			bool IsMatch(string text)
 			{
+            if(searchTerm.Length == 1)
+            {
+               if(ExactMatch)
+               {
+                  return string.Compare(searchTerm[0], text, true) == 0;
+               }
+            }
 			  for (int i = 0; i < searchTerm.Length; ++i) {
 			    // How to handle overlapping matches?
 			    if (text.IndexOf(searchTerm[i], StringComparison.OrdinalIgnoreCase) < 0)
@@ -284,20 +373,27 @@ namespace ICSharpCode.ILSpy
   			return true;
 			}
 			
-			void PerformSearch(TypeDefinition type)
+			void PerformSearch(TypeDefinition type, ModuleDefinition module)
 			{
+			   var assemblyName = module.Assembly.FullName;
 				if (searchMode == SearchMode_Type && IsMatch(type.Name)) {
+               if (!MainWindow.Instance.SessionSettings.FilterSettings.ShowInternalApi)
+               {
+                  if (!type.IsPublic)
+                     return;
+               }
 					AddResult(new SearchResult {
 					          	Member = type,
 					          	Image = TypeTreeNode.GetIcon(type),
 					          	Name = language.TypeToString(type, includeNamespace: false),
 					          	LocationImage = type.DeclaringType != null ? TypeTreeNode.GetIcon(type.DeclaringType) : Images.Namespace,
-					          	Location = type.DeclaringType != null ? language.TypeToString(type.DeclaringType, includeNamespace: true) : type.Namespace
+					          	Namespace = type.DeclaringType != null ? language.TypeToString(type.DeclaringType, includeNamespace: true) : type.Namespace,
+                           Assembly = assemblyName
 					          });
 				}
 				
 				foreach (TypeDefinition nestedType in type.NestedTypes) {
-					PerformSearch(nestedType);
+					PerformSearch(nestedType, module);
 				}
 				
 				if (searchMode == SearchMode_Type)
@@ -310,7 +406,8 @@ namespace ICSharpCode.ILSpy
 						          	Image = FieldTreeNode.GetIcon(field),
 						          	Name = field.Name,
 						          	LocationImage = TypeTreeNode.GetIcon(type),
-						          	Location = language.TypeToString(type, includeNamespace: true)
+						          	Namespace = language.TypeToString(type, includeNamespace: true),
+						          	Assembly = assemblyName
 						          });
 					}
 				}
@@ -321,7 +418,8 @@ namespace ICSharpCode.ILSpy
 						          	Image = PropertyTreeNode.GetIcon(property),
 						          	Name = property.Name,
 						          	LocationImage = TypeTreeNode.GetIcon(type),
-						          	Location = language.TypeToString(type, includeNamespace: true)
+						          	Namespace = language.TypeToString(type, includeNamespace: true),
+						          	Assembly = assemblyName
 						          });
 					}
 				}
@@ -332,7 +430,8 @@ namespace ICSharpCode.ILSpy
 						          	Image = EventTreeNode.GetIcon(ev),
 						          	Name = ev.Name,
 						          	LocationImage = TypeTreeNode.GetIcon(type),
-						          	Location = language.TypeToString(type, includeNamespace: true)
+						          	Namespace = language.TypeToString(type, includeNamespace: true),
+						          	Assembly = assemblyName
 						          });
 					}
 				}
@@ -351,7 +450,8 @@ namespace ICSharpCode.ILSpy
 						          	Image = MethodTreeNode.GetIcon(method),
 						          	Name = method.Name,
 						          	LocationImage = TypeTreeNode.GetIcon(type),
-						          	Location = language.TypeToString(type, includeNamespace: true)
+						          	Namespace = language.TypeToString(type, includeNamespace: true),
+						          	Assembly = assemblyName
 						          });
 					}
 				}
@@ -513,8 +613,10 @@ namespace ICSharpCode.ILSpy
 			
 			public MemberReference Member { get; set; }
 			
-			public string Location { get; set; }
+			public string Namespace { get; set; }
 			public string Name { get; set; }
+			public string Assembly { get; set; }
+         
 			public ImageSource Image { get; set; }
 			public ImageSource LocationImage { get; set; }
 			
