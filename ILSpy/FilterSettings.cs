@@ -34,7 +34,9 @@ namespace ICSharpCode.ILSpy
 	{
 		public FilterSettings(XElement element)
 		{
-			this.ShowInternalApi = (bool?)element.Element("ShowInternalAPI") ?? true;
+         this.ShowInternalApi = (bool?)element.Element("ShowInternalAPI") ?? true;
+         this.SearchInCurrentAssembly = (bool?)element.Element("SearchInCurrentAssembly") ?? true;
+         this.MatchEnum = (bool?)element.Element("MatchEnum") ?? true;
 			this.Language = Languages.GetLanguage((string)element.Element("Language"));
 		}
 		
@@ -42,7 +44,9 @@ namespace ICSharpCode.ILSpy
 		{
 			return new XElement(
 				"FilterSettings",
-				new XElement("ShowInternalAPI", this.ShowInternalApi),
+            new XElement("ShowInternalAPI", this.ShowInternalApi),
+            new XElement("SearchInCurrentAssembly", this.SearchInCurrentAssembly),
+            new XElement("MatchEnum", this.MatchEnum),
 				new XElement("Language", this.Language.Name)
 			);
 		}
@@ -87,7 +91,42 @@ namespace ICSharpCode.ILSpy
 				}
 			}
 		}
-		
+
+      bool searchInCurrentAssembly;
+
+      /// <summary>
+      /// Gets/Sets whether text is matched exactly.
+      /// </summary>
+      public bool SearchInCurrentAssembly
+      {
+         get { return searchInCurrentAssembly; }
+         set
+         {
+            if (searchInCurrentAssembly != value)
+            {
+               searchInCurrentAssembly = value;
+               OnPropertyChanged("SearchInCurrentAssembly");
+            }
+         }
+      }
+
+      bool matchEnum;
+
+      /// <summary>
+      /// Gets/Sets whether search on enums only.
+      /// </summary>
+      public bool MatchEnum
+      {
+         get { return matchEnum; }
+         set
+         {
+            if (matchEnum != value)
+            {
+               matchEnum = value;
+               OnPropertyChanged("MatchEnum");
+            }
+         }
+      }
 		Language language;
 		
 		/// <summary>

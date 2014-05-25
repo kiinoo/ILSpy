@@ -32,6 +32,8 @@
                         </ComboBox.ItemTemplate>
                     </ComboBox>
                     <ToggleButton Name="buttonExactMatch" Click="ButtonExactMatch_Click" Width="16" ToolTip="Exact Match">=</ToggleButton>
+                    <CheckBox Name="checkBoxSearchSelectedAssemblyOnly" ToolTip="Search only in selected assembly"></CheckBox>
+                    <CheckBox Name="checkBoxSearchEnumerationOnly" ToolTip="Only search Enumeration"></CheckBox>
                 </StackPanel>
             </Grid>
         </Border>

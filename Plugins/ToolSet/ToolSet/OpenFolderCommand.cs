@@ -15,12 +15,12 @@ namespace ToolSet
    // Header: text on the menu item
    // MenuCategory: optional, used for grouping related menu items together. A separator is added between different groups.
    // MenuOrder: controls the order in which the items appear (items are sorted by this value)
-   [ExportMainMenuCommandAttribute(Menu = "_View", MenuIcon = ToolSet.Constants.ImageFolderOpen, Header = "_Open Location", MenuCategory = "View", MenuOrder = 1.5)]
+   [ExportMainMenuCommandAttribute(Menu = "_View", MenuIcon = ToolSet.ToolConstants.ImageFolderOpen, Header = "_Open Location", MenuCategory = "View", MenuOrder = 1.5)]
    // ToolTip: the tool tip
    // ToolbarIcon: The icon. Must be embedded as "Resource" (WPF-style resource) in the same assembly as the command type.
    // ToolbarCategory: optional, used for grouping related toolbar items together. A separator is added between different groups.
    // ToolbarOrder: controls the order in which the items appear (items are sorted by this value)
-   [ExportToolbarCommandAttribute(ToolTip = "Open folder of selected file assembly", ToolbarIcon = ToolSet.Constants.ImageFolderOpen, ToolbarCategory = "View", ToolbarOrder = 1.5)]
+   [ExportToolbarCommandAttribute(ToolTip = "Open folder of selected file assembly", ToolbarIcon = ToolSet.ToolConstants.ImageFolderOpen, ToolbarCategory = "View", ToolbarOrder = 1.5)]
    //[ExportContextMenuEntryAttribute]
    public class OpenFolderCommand : SimpleCommand
    {
@@ -54,7 +54,7 @@ namespace ToolSet
       }
    }
 
-   [ExportContextMenuEntryAttribute(Header = "Open Location", Icon = ToolSet.Constants.ImageFolderOpen, Category = "View")]
+   [ExportContextMenuEntryAttribute(Header = "Open Location", Icon = ToolSet.ToolConstants.ImageFolderOpen, Category = "View")]
    public class OpenFolderContextMenu : SimpleContextMenuEntry
    {
       public OpenFolderContextMenu()

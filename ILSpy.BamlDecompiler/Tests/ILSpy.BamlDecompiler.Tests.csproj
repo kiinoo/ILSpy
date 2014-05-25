@@ -7,7 +7,7 @@
     <OutputType>Library</OutputType>
     <RootNamespace>ILSpy.BamlDecompiler.Tests</RootNamespace>
     <AssemblyName>ILSpy.BamlDecompiler.Tests</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
     <AllowUnsafeBlocks>False</AllowUnsafeBlocks>
@@ -116,11 +116,7 @@
       <Name>ILSpy.BamlDecompiler</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Cases" />
-    <Folder Include="Mocks" />
-    <Folder Include="Properties" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <Page Include="Cases\AttachedEvent.xaml" />
     <Page Include="Cases\AvalonDockBrushes.xaml" />

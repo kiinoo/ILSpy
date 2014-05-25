@@ -60,6 +60,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Constants.cs" />
+    <Compile Include="FindObsoleteCommand.cs" />
     <Compile Include="SimpleContextMenuEntry.cs" />
     <Compile Include="OpenFolderCommand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

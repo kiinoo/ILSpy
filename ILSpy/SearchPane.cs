@@ -65,8 +65,17 @@ namespace ICSharpCode.ILSpy
 			searchModeComboBox.Items.Add(new { Image = Images.Property, Name = "Member" });
 			searchModeComboBox.Items.Add(new { Image = Images.Literal, Name = "Constant" });
 			searchModeComboBox.SelectedIndex = SearchMode_Type;
-			
+         var bindingMatchEnum = new System.Windows.Data.Binding("MatchEnum");
+         bindingMatchEnum.Source = MainWindow.Instance.SessionSettings.FilterSettings;
+         checkBoxSearchEnumerationOnly.SetBinding(CheckBox.IsCheckedProperty, bindingMatchEnum);
+
+         var bindingSearchInCurrentAssembly = new System.Windows.Data.Binding("SearchInCurrentAssembly");
+         bindingSearchInCurrentAssembly.Source = MainWindow.Instance.SessionSettings.FilterSettings;
+         checkBoxSearchSelectedAssemblyOnly.SetBinding(CheckBox.IsCheckedProperty, bindingSearchInCurrentAssembly);
+
 			MainWindow.Instance.CurrentAssemblyListChanged += MainWindow_Instance_CurrentAssemblyListChanged;
+         MainWindow.Instance.SessionSettings.FilterSettings.PropertyChanged += FilterSettings_PropertyChanged;
+
 		}
 		
 		bool runSearchOnNextShow;
@@ -118,6 +127,12 @@ namespace ICSharpCode.ILSpy
          StartSearch(this.SearchTerm);
       }
 
+      void FilterSettings_PropertyChanged(object sender, PropertyChangedEventArgs e)
+      {
+         if (e.PropertyName == "MatchEnum" || e.PropertyName == "SearchInCurrentAssembly")
+            StartSearch(this.SearchTerm);
+      }
+    
       GridViewColumnHeader _lastHeaderClicked = null;
       ListSortDirection _lastDirection = ListSortDirection.Ascending;
       void GridViewColumnHeaderClickedHandler(object sender,RoutedEventArgs e)
@@ -202,12 +217,48 @@ namespace ICSharpCode.ILSpy
             listView.ItemsSource = null;
 			} else {
 				MainWindow mainWindow = MainWindow.Instance;
-				currentSearch = new RunningSearch(mainWindow.CurrentAssemblyList.GetAssemblies(), searchTerm, searchModeComboBox.SelectedIndex, mainWindow.CurrentLanguage);
+            LoadedAssembly[] assemblies = null;
+            if (checkBoxSearchSelectedAssemblyOnly.IsChecked == true)
+            {
+               assemblies = GetSelectedAssemblies();
+            }
+            else
+            {
+               assemblies = mainWindow.CurrentAssemblyList.GetAssemblies();
+            }
+				currentSearch = new RunningSearch(assemblies, searchTerm, searchModeComboBox.SelectedIndex, mainWindow.CurrentLanguage);
 			   currentSearch.ExactMatch = buttonExactMatch.IsChecked.GetValueOrDefault(false);
+            
 			   listView.ItemsSource = currentSearch.Results;
 				new Thread(currentSearch.Run).Start();
 			}
 		}
+
+      private LoadedAssembly[] GetSelectedAssemblies()
+      {
+         var selection = MainWindow.Instance.SelectedNodes;
+         System.Collections.Generic.List<LoadedAssembly> selected = new System.Collections.Generic.List<LoadedAssembly>();
+         foreach (ICSharpCode.TreeView.SharpTreeNode treeNode in selection)
+         {
+            var assemblyTreeNode = GetParentAssembly(treeNode);
+            if (assemblyTreeNode != null)
+               selected.Add(assemblyTreeNode.LoadedAssembly);
+         }
+         return selected.ToArray();
+      }
+
+      private static AssemblyTreeNode GetParentAssembly(ICSharpCode.TreeView.SharpTreeNode treeNode)
+      {
+         var treeNodeTmp = treeNode;
+         var assemblyTreeNode = treeNodeTmp as AssemblyTreeNode;
+
+         while (assemblyTreeNode == null)
+         {
+            treeNodeTmp = treeNodeTmp.Parent;
+            assemblyTreeNode = treeNodeTmp as AssemblyTreeNode;
+         }
+         return assemblyTreeNode;
+      }
 		
 		void IPane.Closed()
 		{
@@ -332,6 +383,7 @@ namespace ICSharpCode.ILSpy
 						CancellationToken cancellationToken = cts.Token;
 						foreach (TypeDefinition type in module.Types) {
 							cancellationToken.ThrowIfCancellationRequested();
+                     
 							PerformSearch(type, module);
 						}
 					}
@@ -375,13 +427,12 @@ namespace ICSharpCode.ILSpy
 			
 			void PerformSearch(TypeDefinition type, ModuleDefinition module)
 			{
+            if (!MainWindow.Instance.SessionSettings.FilterSettings.ShowInternalApi && string.IsNullOrWhiteSpace(type.Namespace))
+               return;
+
 			   var assemblyName = module.Assembly.FullName;
 				if (searchMode == SearchMode_Type && IsMatch(type.Name)) {
-               if (!MainWindow.Instance.SessionSettings.FilterSettings.ShowInternalApi)
-               {
-                  if (!type.IsPublic)
-                     return;
-               }
+               if (ShouldIgnore(type)) return;
 					AddResult(new SearchResult {
 					          	Member = type,
 					          	Image = TypeTreeNode.GetIcon(type),
@@ -393,13 +444,15 @@ namespace ICSharpCode.ILSpy
 				}
 				
 				foreach (TypeDefinition nestedType in type.NestedTypes) {
-					PerformSearch(nestedType, module);
+               if (ShouldIgnore(nestedType)) continue;
+               PerformSearch(nestedType, module);
 				}
 				
 				if (searchMode == SearchMode_Type)
 					return;
 				
 				foreach (FieldDefinition field in type.Fields) {
+               if (ShouldIgnore(field)) continue;
 					if (IsMatch(field)) {
 						AddResult(new SearchResult {
 						          	Member = field,
@@ -411,8 +464,13 @@ namespace ICSharpCode.ILSpy
 						          });
 					}
 				}
+
+            if (MainWindow.Instance.SessionSettings.FilterSettings.MatchEnum)
+               return;
 				foreach (PropertyDefinition property in type.Properties) {
-					if (IsMatch(property)) {
+               if (ShouldIgnore(property)) continue;
+               if (IsMatch(property))
+               {
 						AddResult(new SearchResult {
 						          	Member = property,
 						          	Image = PropertyTreeNode.GetIcon(property),
@@ -424,7 +482,9 @@ namespace ICSharpCode.ILSpy
 					}
 				}
 				foreach (EventDefinition ev in type.Events) {
-					if (IsMatch(ev)) {
+               if (ShouldIgnore(ev)) continue;
+               if (IsMatch(ev))
+               {
 						AddResult(new SearchResult {
 						          	Member = ev,
 						          	Image = EventTreeNode.GetIcon(ev),
@@ -436,7 +496,9 @@ namespace ICSharpCode.ILSpy
 					}
 				}
 				foreach (MethodDefinition method in type.Methods) {
-					switch (method.SemanticsAttributes) {
+               if (ShouldIgnore(method)) continue;
+               switch (method.SemanticsAttributes)
+               {
 						case MethodSemanticsAttributes.Setter:
 						case MethodSemanticsAttributes.Getter:
 						case MethodSemanticsAttributes.AddOn:
@@ -456,7 +518,53 @@ namespace ICSharpCode.ILSpy
 					}
 				}
 			}
-			
+
+
+         private bool ShouldIgnore(EventDefinition def)
+         {
+            bool shouldIgnore = true;
+            if (!ShouldIgnore(def.AddMethod))
+               shouldIgnore = false;
+            if (!ShouldIgnore(def.RemoveMethod))
+               shouldIgnore = false;
+            return ShowWhenHideInternalApiIsChecked(() => shouldIgnore);
+         }
+         private bool ShouldIgnore(PropertyDefinition def)
+         {
+            bool shouldIgnore = true;
+            if (!ShouldIgnore(def.GetMethod)) 
+               shouldIgnore = false;
+            if (!ShouldIgnore(def.SetMethod))
+               shouldIgnore = false;
+            return ShowWhenHideInternalApiIsChecked(() => shouldIgnore);
+         }
+         private bool ShouldIgnore(MethodDefinition def)
+         {
+            return ShowWhenHideInternalApiIsChecked(() => def != null && !def.IsPublic);
+         }
+         private bool ShouldIgnore(FieldDefinition def)
+         {
+            if (MainWindow.Instance.SessionSettings.FilterSettings.MatchEnum)
+               return !def.DeclaringType.IsEnum;
+            return ShowWhenHideInternalApiIsChecked(() => def != null && !def.IsPublic);
+         }
+         private bool ShouldIgnore(TypeDefinition def)
+         {
+            if (MainWindow.Instance.SessionSettings.FilterSettings.MatchEnum)
+               return !def.IsEnum;
+            return ShowWhenHideInternalApiIsChecked(() => def != null && !def.IsPublic && !string.IsNullOrWhiteSpace(def.Namespace));
+         }
+
+         private bool ShowWhenHideInternalApiIsChecked(Func<bool> predict)
+         {
+            if (!MainWindow.Instance.SessionSettings.FilterSettings.ShowInternalApi)
+            {
+               if (predict())
+                  return true;
+            }
+            return false;
+         }
+
 			bool IsMatch(FieldDefinition field)
 			{
 				if (searchMode == SearchMode_Literal)
