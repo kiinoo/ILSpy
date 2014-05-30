@@ -32,5 +32,15 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion(RevisionClass.Major + "." + RevisionClass.Minor + "." + RevisionClass.Build + "." + RevisionClass.Revision)]
+
+internal static class RevisionClass
+{
+   public const string Major = "2";
+   public const string Minor = "1";
+   public const string Build = "0";
+   public const string Revision = "1651";
+   public const string VersionName = null;
+
+   public const string FullVersion = Major + "." + Minor + "." + Build + ".1651";
+}

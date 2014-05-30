@@ -94,7 +94,7 @@ namespace ICSharpCode.ILSpy
 			if (method.IsConstructor && !method.IsStatic && !method.DeclaringType.IsValueType) {
 				// also fields and other ctors so that the field initializers can be shown as such
 				AddFieldsAndCtors(codeDomBuilder, method.DeclaringType, method.IsStatic);
-				RunTransformsAndGenerateCode(codeDomBuilder, output, options, new SelectCtorTransform(method));
+            RunTransformsAndGenerateCode(codeDomBuilder, output, options, new SelectCtorTransform(method));
 			} else {
 				codeDomBuilder.AddMethod(method);
 				RunTransformsAndGenerateCode(codeDomBuilder, output, options);

@@ -1,0 +1,38 @@
+﻿<UserControl x:Class="ToolSet.HumanizerPane"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:ae="clr-namespace:ICSharpCode.AvalonEdit;assembly=ICSharpCode.AvalonEdit"
+             xmlns:local="clr-namespace:ToolSet"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="300">
+    <Grid>
+        <DockPanel>
+            <ToolBar Name="toolBar"	 DockPanel.Dock="Top" ToolBarTray.IsLocked="True">
+                <ComboBox Name="languageComboBox" DisplayMemberPath="Name" Width="100"
+			          ItemsSource="{x:Static local:HumanizeLanguages.AllLanguages}"
+			          SelectedValue="{Binding local:ToolSetSettings.Instance.Language, Mode=TwoWay}"/>
+            </ToolBar>
+            <Border BorderThickness="1,1,0,1" BorderBrush="#FF828790">
+                <Grid>
+                    <ae:TextEditor Name="textEditor" FontFamily="Consolas" FontSize="10pt" IsReadOnly="True"
+				               Background="{DynamicResource {x:Static SystemColors.InfoBrushKey}}"
+				               Foreground="{DynamicResource {x:Static SystemColors.InfoTextBrushKey}}">
+                        <ae:TextEditor.Resources>
+                            <!-- prevent App-wide button style from applying to the buttons in the search box -->
+                            <Style TargetType="{x:Type Button}" />
+                        </ae:TextEditor.Resources>
+                    </ae:TextEditor>
+                    <Border Name="waitAdorner" Background="#C0FFFFFF" Visibility="Collapsed">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock FontSize="14pt">Decompiling...</TextBlock>
+                            <ProgressBar IsIndeterminate="True" Height="16" Margin="0, 4" />
+                            <!--<Button Click="cancelButton_Click" HorizontalAlignment="Center">Cancel</Button>-->
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </DockPanel>
+    </Grid>
+</UserControl>

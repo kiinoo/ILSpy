@@ -95,6 +95,11 @@ namespace ICSharpCode.ILSpy
 			
 			this.Loaded += new RoutedEventHandler(MainWindow_Loaded);
 		}
+
+      public SharpTreeView TreeView
+      {
+         get { return treeView; }
+      }
 		
 		void SetWindowBounds(Rect bounds)
 		{

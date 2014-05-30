@@ -319,6 +319,7 @@ namespace ICSharpCode.ILSpy
 			readonly string[] searchTerm;
 			readonly int searchMode;
 			readonly Language language;
+         readonly string baseClass;
 			public readonly ObservableCollection<SearchResult> Results = new ObservableCollection<SearchResult>();
 			int resultCount;
 			
@@ -329,11 +330,21 @@ namespace ICSharpCode.ILSpy
 			
 			public RunningSearch(LoadedAssembly[] assemblies, string searchTerm, int searchMode, Language language)
 			{
+            this.baseClass = null;
 				this.dispatcher = Dispatcher.CurrentDispatcher;
 				this.assemblies = assemblies;
-				this.searchTerm = searchTerm.Split(new char[] {' '}, StringSplitOptions.RemoveEmptyEntries);
 				this.language = language;
 				this.searchMode = searchMode;
+            if (this.searchMode != SearchMode_Literal)
+            {
+               var semiCoIndex = searchTerm.IndexOf(':');
+               if (semiCoIndex != -1)
+               {
+                  this.baseClass = searchTerm.Substring(semiCoIndex+1).Trim();
+                  searchTerm = searchTerm.Substring(0, semiCoIndex).Trim();
+               }
+            }
+            this.searchTerm = searchTerm.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 				
 				this.Results.Add(new SearchResult { Name = "Searching..." });
 			}
@@ -432,6 +443,7 @@ namespace ICSharpCode.ILSpy
 
 			   var assemblyName = module.Assembly.FullName;
 				if (searchMode == SearchMode_Type && IsMatch(type.Name)) {
+               if (!MeetBaseClass(type, this.baseClass)) return;
                if (ShouldIgnore(type)) return;
 					AddResult(new SearchResult {
 					          	Member = type,
@@ -518,6 +530,27 @@ namespace ICSharpCode.ILSpy
 					}
 				}
 			}
+
+         private bool MeetBaseClass(TypeDefinition type, string p)
+         {
+            if (string.IsNullOrWhiteSpace(p)) return true;
+            foreach (var item in type.Interfaces)
+            {
+               if (item.Name.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0)
+               {
+                  return true;
+               }
+            }
+            var bType = type.BaseType;
+            while (bType != null)
+            {
+               if (bType.Name.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0)
+                  return true;
+               bType = bType.Resolve().BaseType;
+               //bType = bType.BaseType;
+            }
+            return false;
+         }
 
 
          private bool ShouldIgnore(EventDefinition def)

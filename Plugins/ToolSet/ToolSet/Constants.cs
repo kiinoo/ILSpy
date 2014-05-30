@@ -10,7 +10,9 @@ namespace ToolSet
 {
    public static class ToolConstants
    {
-      public const string ImageFolderOpen = "Folder_6221.png";
+      public const string ImageFolderOpen = "Images\\Folder_6221.png";
+      public const string ImageEye = "Images\\eye_16xLG.png";
+      public const string ImageSettingsOpen = "Images\\settings_16.png";
       public static AssemblyTreeNode GetAssemblyTreeNode()
       {
          var selection = MainWindow.Instance.SelectedNodes;

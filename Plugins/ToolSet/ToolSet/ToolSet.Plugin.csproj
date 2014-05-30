@@ -31,6 +31,14 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ICSharpCode.AvalonEdit">
+      <HintPath>..\..\..\ILSpy\bin\Debug\ICSharpCode.AvalonEdit.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ICSharpCode.Decompiler">
+      <HintPath>..\..\..\ILSpy\bin\Debug\ICSharpCode.Decompiler.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="ICSharpCode.TreeView, Version=4.2.0.8752, Culture=neutral, PublicKeyToken=d4bfe873e7598c49, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\ILSpy\bin\Debug\ICSharpCode.TreeView.dll</HintPath>
@@ -60,24 +68,38 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Constants.cs" />
+    <Compile Include="EnumNameCollection.cs" />
+    <Compile Include="HumanizeLanguage.cs" />
+    <Compile Include="HumanizerCommand.cs" />
     <Compile Include="FindObsoleteCommand.cs" />
+    <Compile Include="HumanizerDisassembler.cs" />
+    <Compile Include="HumanizerPane.xaml.cs">
+      <DependentUpon>HumanizerPane.xaml</DependentUpon>
+    </Compile>
     <Compile Include="SimpleContextMenuEntry.cs" />
     <Compile Include="OpenFolderCommand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ToolSetSettings.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Folder_6221.png" />
+    <Page Include="HumanizerPane.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\eye_16xLG.png" />
+    <Resource Include="Images\Folder_6221.png" />
+    <Resource Include="Images\settings_16.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy "$(TargetPath)" "$(TargetDir)..\..\..\..\..\ILSpy\bin\Debug" &amp;&amp; (
-pushd "$(TargetDir)..\..\..\..\..\ILSpy\bin\Debug"
-echo ==^&gt; %25cd%25\$(TargetFileName)
-popd
-echo DEPLOY SUCCESS
-) || (
-  echo DEPLOY ERROR: copying file failed &amp; exit 1
-)</PostBuildEvent>
+    <PostBuildEvent>pushd ..\..\
+call PostBuildDeploy.bat "$(TargetPath)" "$(TargetDir)" "$(TargetFileName)"
+popd</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

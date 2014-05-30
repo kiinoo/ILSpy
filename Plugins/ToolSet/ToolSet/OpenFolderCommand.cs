@@ -15,12 +15,12 @@ namespace ToolSet
    // Header: text on the menu item
    // MenuCategory: optional, used for grouping related menu items together. A separator is added between different groups.
    // MenuOrder: controls the order in which the items appear (items are sorted by this value)
-   [ExportMainMenuCommandAttribute(Menu = "_View", MenuIcon = ToolSet.ToolConstants.ImageFolderOpen, Header = "_Open Location", MenuCategory = "View", MenuOrder = 1.5)]
+   [ExportMainMenuCommandAttribute(Menu = "_View", MenuIcon = ToolConstants.ImageFolderOpen, Header = "_Open Location", MenuCategory = "View", MenuOrder = 1.5)]
    // ToolTip: the tool tip
    // ToolbarIcon: The icon. Must be embedded as "Resource" (WPF-style resource) in the same assembly as the command type.
    // ToolbarCategory: optional, used for grouping related toolbar items together. A separator is added between different groups.
    // ToolbarOrder: controls the order in which the items appear (items are sorted by this value)
-   [ExportToolbarCommandAttribute(ToolTip = "Open folder of selected file assembly", ToolbarIcon = ToolSet.ToolConstants.ImageFolderOpen, ToolbarCategory = "View", ToolbarOrder = 1.5)]
+   [ExportToolbarCommandAttribute(ToolTip = "Open folder of selected file assembly", ToolbarIcon = ToolConstants.ImageFolderOpen, ToolbarCategory = "View", ToolbarOrder = 1.5)]
    //[ExportContextMenuEntryAttribute]
    public class OpenFolderCommand : SimpleCommand
    {
@@ -54,7 +54,7 @@ namespace ToolSet
       }
    }
 
-   [ExportContextMenuEntryAttribute(Header = "Open Location", Icon = ToolSet.ToolConstants.ImageFolderOpen, Category = "View")]
+   [ExportContextMenuEntryAttribute(Header = "Open Location", Icon = ToolConstants.ImageFolderOpen, Category = "View")]
    public class OpenFolderContextMenu : SimpleContextMenuEntry
    {
       public OpenFolderContextMenu()
@@ -64,6 +64,28 @@ namespace ToolSet
       public override bool IsVisible(TextViewContext context)
       {
          return context.SelectedTreeNodes != null /*&& context.SelectedTreeNodes.All(n => n is AssemblyTreeNode)*/;
+      }
+   }
+
+   [ExportToolbarCommandAttribute(ToolTip = "Open folder of settings file", ToolbarIcon = ToolConstants.ImageSettingsOpen, ToolbarCategory = "View", ToolbarOrder = 3)]
+   //[ExportContextMenuEntryAttribute]
+   public class OpenSettingsFolderCommand : SimpleCommand
+   {
+      public override void Execute(object parameter)
+      {
+         var file = SettingsBase.GetConfigFile();
+         string folder = "";
+         var program = "explorer.exe";
+         var args = "/select,\"" + file + "\"";
+         try
+         {
+            System.Windows.MessageBox.Show(program + " " + args, "Try to open");
+            Process.Start(program, args);
+         }
+         catch (System.Exception ex)
+         {
+            System.Windows.MessageBox.Show(program + " " + args, "Failed to open file!");
+         }
       }
    }
 }
