@@ -62,6 +62,7 @@ namespace ToolSet
          }
          this.textEditor.SyntaxHighlighting = ToolSetSettings.Instance.Language.SyntaxHighlighting;
          this.textEditor.AppendText(textOutput.GetDocument().Text);
+         textEditor.TextArea.DefaultInputHandler.NestedInputHandlers.Add(new ICSharpCode.AvalonEdit.Search.SearchInputHandler(textEditor.TextArea));
       }
 
       static HumanizerPane instance;

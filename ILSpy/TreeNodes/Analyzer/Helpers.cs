@@ -24,7 +24,7 @@ using Mono.Cecil.Cil;
 
 namespace ICSharpCode.ILSpy.TreeNodes.Analyzer
 {
-	internal static class Helpers
+	public static class Helpers
 	{
 		public static bool IsReferencedBy(TypeDefinition type, TypeReference typeRef)
 		{
@@ -106,5 +106,43 @@ namespace ICSharpCode.ILSpy.TreeNodes.Analyzer
 			}
 			return null;
 		}
+
+      public static System.Collections.Generic.IEnumerable<TypeDefinition> FindDerivedTypes(TypeDefinition type, ModuleDefinition[] assemblies, System.Threading.CancellationToken cancellationToken)
+      {
+         foreach (ModuleDefinition module in assemblies)
+         {
+            foreach (TypeDefinition td in ICSharpCode.NRefactory.Utils.TreeTraversal.PreOrder(module.Types, t => t.NestedTypes))
+            {
+               cancellationToken.ThrowIfCancellationRequested();
+               if (type.IsInterface && td.HasInterfaces)
+               {
+                  foreach (TypeReference typeRef in td.Interfaces)
+                  {
+                     if (IsSameType(typeRef, type))
+                        yield return td;
+                  }
+               }
+               else if (!type.IsInterface && td.BaseType != null && IsSameType(td.BaseType, type))
+               {
+                  yield return td;
+               }
+            }
+         }
+      }
+      public static bool IsSameType(TypeReference typeRef, TypeDefinition type)
+      {
+         if (typeRef.FullName == type.FullName)
+            return true;
+         if (typeRef.Name != type.Name || type.Namespace != typeRef.Namespace)
+            return false;
+         if (typeRef.IsNested || type.IsNested)
+            if (!typeRef.IsNested || !type.IsNested || !IsSameType(typeRef.DeclaringType, type.DeclaringType))
+               return false;
+         var gTypeRef = typeRef as GenericInstanceType;
+         if (gTypeRef != null || type.HasGenericParameters)
+            if (gTypeRef == null || !type.HasGenericParameters || gTypeRef.GenericArguments.Count != type.GenericParameters.Count)
+               return false;
+         return true;
+      }
 	}
 }

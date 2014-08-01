@@ -67,35 +67,10 @@ namespace ICSharpCode.ILSpy.TreeNodes
 
 		internal static IEnumerable<DerivedTypesEntryNode> FindDerivedTypes(TypeDefinition type, ModuleDefinition[] assemblies, CancellationToken cancellationToken)
 		{
-			foreach (ModuleDefinition module in assemblies) {
-				foreach (TypeDefinition td in TreeTraversal.PreOrder(module.Types, t => t.NestedTypes)) {
-					cancellationToken.ThrowIfCancellationRequested();
-					if (type.IsInterface && td.HasInterfaces) {
-						foreach (TypeReference typeRef in td.Interfaces) {
-							if (IsSameType(typeRef, type))
-								yield return new DerivedTypesEntryNode(td, assemblies);
-						}
-					} else if (!type.IsInterface && td.BaseType != null && IsSameType(td.BaseType, type)) {
-						yield return new DerivedTypesEntryNode(td, assemblies);
-					}
-				}
-			}
-		}
-
-		static bool IsSameType(TypeReference typeRef, TypeDefinition type)
-		{
-			if (typeRef.FullName == type.FullName)
-				return true;
-			if (typeRef.Name != type.Name || type.Namespace != typeRef.Namespace)
-				return false;
-			if (typeRef.IsNested || type.IsNested)
-				if (!typeRef.IsNested || !type.IsNested || !IsSameType(typeRef.DeclaringType, type.DeclaringType))
-					return false;
-			var gTypeRef = typeRef as GenericInstanceType;
-			if (gTypeRef != null || type.HasGenericParameters)
-				if (gTypeRef == null || !type.HasGenericParameters || gTypeRef.GenericArguments.Count != type.GenericParameters.Count)
-					return false;
-			return true;
+         foreach (var td in ICSharpCode.ILSpy.TreeNodes.Analyzer.Helpers.FindDerivedTypes(type, assemblies, cancellationToken))
+         {
+            yield return new DerivedTypesEntryNode(td, assemblies);
+         }
 		}
 
 		public override void Decompile(Language language, ITextOutput output, DecompilationOptions options)

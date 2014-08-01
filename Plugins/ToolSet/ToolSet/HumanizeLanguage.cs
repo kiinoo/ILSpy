@@ -11,7 +11,7 @@ using Mono.Cecil;
 
 namespace ToolSet
 {
-   //[Export(typeof(CompositeLanguageClass))]
+   [Export(typeof(CompositeLanguageClass))]
    public class HumanizeLanguage : Language
    {
       public override string FileExtension
@@ -21,7 +21,7 @@ namespace ToolSet
 
       public override void DecompileType(Mono.Cecil.TypeDefinition type, ICSharpCode.Decompiler.ITextOutput output, DecompilationOptions options)
       {
-         var dis = new HumanizerDisassembler(output, options.CancellationToken);
+         var dis = new HumanizeReturnTypeDerivedTypesDisassembler(output, options.CancellationToken);
          dis.DisassembleType(type);
       }
 
@@ -31,20 +31,20 @@ namespace ToolSet
       }
    }
 
-   [Export(typeof(CompositeLanguageClass))]
-   public class HumanizeRecursiveOnMethodReturnTypeLanguage : HumanizeLanguage
-   {
-      public override void DecompileType(Mono.Cecil.TypeDefinition type, ICSharpCode.Decompiler.ITextOutput output, DecompilationOptions options)
-      {
-         var dis = new HumanizeRecursiveOnMethodReturnTypeDisassembler(output, options.CancellationToken);
-         dis.DisassembleType(type);
-      }
+   //[Export(typeof(CompositeLanguageClass))]
+   //public class HumanizeRecursiveOnMethodReturnTypeLanguage : HumanizeLanguage
+   //{
+   //   public override void DecompileType(Mono.Cecil.TypeDefinition type, ICSharpCode.Decompiler.ITextOutput output, DecompilationOptions options)
+   //   {
+   //      var dis = new HumanizeReturnTypeDisassembler(output, options.CancellationToken);
+   //      dis.DisassembleType(type);
+   //   }
 
-      public override string Name
-      {
-         get { return "H+ReturnType"; }
-      }
-   }
+   //   public override string Name
+   //   {
+   //      get { return "H+ReturnType"; }
+   //   }
+   //}
 
    public static class HumanizerContext
    {
