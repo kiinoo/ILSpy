@@ -30,7 +30,7 @@ namespace ToolSet
          _cancellationToken = cancellationToken;
       }
 
-      public virtual void DisassembleType(TypeDefinition type)
+      public virtual void DisassembleType(TypeDefinition type, bool outputSaveInvoke = true)
       {
          if (type.IsEnum)
          {
@@ -102,6 +102,40 @@ namespace ToolSet
          BeforeReturn(type, derivedTypes);
          _output.WriteLine("   return sb.ToString();");
          _output.WriteLine("}");
+         if (outputSaveInvoke)
+            _output.WriteLine(@"public static TReturn SafeInvoke<T, TReturn>(this T host, Func<T, TReturn> func)
+{
+   if (func == null) return default(TReturn);
+   try
+   {
+      return func(host);
+   }
+   catch (System.Exception ex)
+   {
+      return default(TReturn);
+   }
+}
+public static string Humanize<T, TReturn>(this T host, Func<T, TReturn> func)
+{
+   TReturn val = default(TReturn);
+   if (func == null) return ""(Func Invalid)"";
+   try
+   {
+      val = func(host);
+      return Humanize(val);
+   }
+   catch (System.Exception ex)
+   {
+      return ex.Message;
+   }
+}
+public static string Humanize(this object obj, int indent = 0, bool indentNotChange = false)
+{
+   if (obj == null)
+      return ""(null)"";
+   StringBuilder sb = new StringBuilder(indentNotChange ? """" : "" Type = "" + obj.GetType().FullName);
+   return sb + obj.ToString();
+}");
          AfterReturn(type, derivedTypes);
       }
 
@@ -142,11 +176,11 @@ namespace ToolSet
          {
             if (method.Name.StartsWith(prefix))
             {
-
+               if (method.ReturnType.FullName == "System.Void") continue;
                var methodCallStrings = new List<string>() { method.Name + "()" };
                var paLength = method.Parameters.Count;
-               List<object[]> result = new List<object[]>();
-               result.Add(new object[paLength]);
+               List<ParameterCan[]> result = new List<ParameterCan[]>();
+               result.Add(new ParameterCan[paLength]);
                if (paLength > 0)
                {
                   methodCallStrings.Clear();
@@ -155,32 +189,52 @@ namespace ToolSet
                   for (int ii = 0; ii < method.Parameters.Count; ii++)
                   {
                      var parameter = method.Parameters[ii];
-                     List<object> parameterCandidates = new List<object>();
-                     List<object[]> tmpResult = new List<object[]>();
-
-                     switch (parameter.ParameterType.FullName)
+                     List<ParameterCan> parameterCandidates = new List<ParameterCan>();
+                     List<ParameterCan[]> tmpResult = new List<ParameterCan[]>();
+                     var parameterType = parameter.ParameterType.Resolve();
+                     if (parameterType.IsEnum)
                      {
-                        //sb.AppendFormat("[GetEndPoint0] {0} ", prefix + Humanize(obj.GetEndPoint(0)));
-                        //sb.AppendFormat("[GetEndPoint1] {0} ", prefix + Humanize(obj.GetEndPoint(1)));
-                        case "System.Int16":
-                        case "System.Int32":
-                        case "System.Int64":
-                        case "System.Double":
-                           parameterCandidates.Add(0);
-                           parameterCandidates.Add(1);
-                           break;
-                        case "System.String":
-                           parameterCandidates.Add("SampleText");
-                           break;
-                        default:
-                           parameterCandidates.Add(null);
-                           break;
+                        if (parameterType.HasFields)
+                        {
+                           int tmpIi = 0;
+                           foreach (FieldDefinition field in parameterType.Fields)
+                           {
+                              if (!field.IsPublic) continue;
+                              if (field.Name == "value__") continue;
+                              parameterCandidates.Add(new ParameterCan(parameterType, parameterType.Name + "." + field.Name));
+                              tmpIi++;
+                              if (tmpIi > 20)
+                                 break;
+                           }
+                        }
                      }
+                     else
+                     {
+                        switch (parameter.ParameterType.FullName)
+                        {
+                           //sb.AppendFormat("[GetEndPoint0] {0} ", prefix + Humanize(obj.GetEndPoint(0)));
+                           //sb.AppendFormat("[GetEndPoint1] {0} ", prefix + Humanize(obj.GetEndPoint(1)));
+                           case "System.Int16":
+                           case "System.Int32":
+                           case "System.Int64":
+                           case "System.Double":
+                              parameterCandidates.Add(new ParameterCan(parameterType,0));
+                              parameterCandidates.Add(new ParameterCan(parameterType,1));
+                              break;
+                           case "System.String":
+                              parameterCandidates.Add(new ParameterCan(parameterType,"SampleText"));
+                              break;
+                           default:
+                              parameterCandidates.Add(new ParameterCan(parameterType,null));
+                              break;
+                        }
+                     }
+
                      foreach (var para in parameterCandidates)
                      {
                         foreach (var item in result)
                         {
-                           object[] clone = new object[paLength];
+                           ParameterCan[] clone = new ParameterCan[paLength];
                            item.CopyTo(clone, 0);
                            clone[ii] = para;
                            tmpResult.Add(clone);
@@ -200,7 +254,7 @@ namespace ToolSet
                   else
                      //_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", prefix + Humanize(obj." + methodCallString + "));");
                      _output.WriteLine(start + methodCallString + "] {0} \", Humanize(SafeInvoke(obj, oo => oo." + methodCallString + "), indent + 1));");
-                     //_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", prefix + Humanize(obj, oo => oo." + methodCallString + "));");
+                  //_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", prefix + Humanize(obj, oo => oo." + methodCallString + "));");
                }
                break;
             }
@@ -224,17 +278,17 @@ namespace ToolSet
                line = start + prop.Name + "] {0} \", SafeInvoke(obj, oo => oo." + prop.Name + "), indent + 1);";
             else
                line = start + prop.Name + "] {0} \", Humanize(SafeInvoke(obj, oo => oo." + prop.Name + "), indent + 1));";
-               //line = "   sb.AppendFormat(\"[" + prop.Name + "] {0} \", prefix + Humanize(obj, oo => oo." + prop.Name + "));";
+            //line = "   sb.AppendFormat(\"[" + prop.Name + "] {0} \", prefix + Humanize(obj, oo => oo." + prop.Name + "));";
             if (prop.GetMethod.HasParameters)
             {
                line.Insert(3, "//");
             }
             _output.WriteLine(line);
          }
-         
+
       }
 
-      private string GetMethodCallString(object[] paraArray)
+      private string GetMethodCallString(ParameterCan[] paraArray)
       {
          string result = "";
          if (paraArray == null || paraArray.Length == 0)
@@ -243,9 +297,11 @@ namespace ToolSet
          for (int ii = 0; ii < paraArray.Length; ii++)
          {
             var singleText = "";
-            var paraOne = paraArray[ii];
+            var paraOne = paraArray[ii].Value;
             if (paraOne == null)
                singleText = "null";
+            else if (paraArray[ii].Type.IsEnum)
+               singleText = paraOne.ToString();
             else if (paraOne.GetType() == typeof(String))
                singleText = "\"" + paraOne + "\"";
             else
@@ -294,7 +350,7 @@ namespace ToolSet
          : base(output, cancellationToken)
       {
       }
-      public override void DisassembleType(TypeDefinition type)
+      public override void DisassembleType(TypeDefinition type, bool outputSafeInvoke = true)
       {
          //if (level < 0)
          //   return;
@@ -309,7 +365,7 @@ namespace ToolSet
          foreach (var item in referencedTypes.Keys.ToArray())
          {
             if (referencedTypes[item] != null)
-               DisassembleType(referencedTypes[item].Resolve());
+               DisassembleType(referencedTypes[item].Resolve(), false);
          }
       }
       public override void DisassembleProperty(PropertyDefinition prop)
@@ -338,7 +394,7 @@ namespace ToolSet
          base.AfterReturn(type, derivedTypes);
          foreach (var derivedType in derivedTypes)
          {
-            DisassembleType(derivedType);
+            DisassembleType(derivedType, false);
          }
       }
       protected override void BeforeReturn(TypeDefinition type, IEnumerable<TypeDefinition> derivedTypes)
@@ -350,7 +406,7 @@ namespace ToolSet
          //   sb.Append(Humanize(line));
          //   return sb.ToString();
          //}
-         string template = @"   TypeFullName derivedTypeVariableName = obj as TypeFullName;
+         string template = @"   DerivedTypeFullName derivedTypeVariableName = obj as DerivedTypeFullName;
    if (derivedTypeVariableName != null)
    {
      sb.Append(Humanize(derivedTypeVariableName, indent, true));
@@ -359,7 +415,7 @@ namespace ToolSet
          foreach (var derivedType in derivedTypes)
          {
             var code = template
-               .Replace("TypeFullName", derivedType.FullName)
+               .Replace("DerivedTypeFullName", derivedType.FullName)
                .Replace("derivedTypeVariableName", char.ToLower(derivedType.Name[0]) + derivedType.Name.Substring(1));
             this.Output.WriteLine(code);
          }

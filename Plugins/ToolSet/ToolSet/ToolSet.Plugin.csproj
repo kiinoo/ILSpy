@@ -76,6 +76,7 @@
     <Compile Include="HumanizerPane.xaml.cs">
       <DependentUpon>HumanizerPane.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ParameterCan.cs" />
     <Compile Include="SimpleContextMenuEntry.cs" />
     <Compile Include="OpenFolderCommand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
