@@ -30,20 +30,47 @@ namespace ToolSet
          _cancellationToken = cancellationToken;
       }
 
+      static Dictionary<string, string> BuiltInHumanizers = new Dictionary<string, string>();
+      static HumanizerDisassembler()
+      {
+         BuiltInHumanizers.Add(
+"Autodesk.Revit.DB.Element",
+@"public static string Humanize(this Element obj, int indent = 0, bool ignoreIndentation = false)
+{
+   if (obj == null)
+      return ""(null)"";
+   StringBuilder sb = new StringBuilder(ignoreIndentation ? """" : "" Type = "" + obj.GetType().FullName);
+   var specialFlag = ignoreIndentation ? ""*"" : """";
+   var prefix = Environment.NewLine + new string(' ', indent * 2) + ""["" + specialFlag;
+   sb.AppendFormat(prefix + ""Id] {0} "", SafeInvoke(obj, oo => oo.Id), indent + 1);
+   sb.AppendFormat(prefix + ""Name] {0} "", SafeInvoke(obj, oo => oo.Name), indent + 1);
+   sb.AppendFormat(prefix + ""Category] {0} "", SafeInvoke(obj, oo => (BuiltInCategory)oo.Category.Id.IntegerValue), indent + 1);
+   sb.AppendFormat(prefix + ""GetType().FullName] {0} "", SafeInvoke(obj, oo => oo.GetType().FullName), indent + 1);
+   return sb.ToString();
+}"
+);
+
+      }
+
       public virtual void DisassembleType(TypeDefinition type, bool outputSaveInvoke = true)
       {
+         if (BuiltInHumanizers.ContainsKey(type.FullName))
+         {
+            _output.WriteLine(BuiltInHumanizers[type.FullName]);
+            return;
+         }
          if (type.IsEnum)
          {
             _output.WriteLine("// Enumeration is not supported");
             return;
          }
 
-         string template = @"public static string Humanize(this TypeFullName obj, int indent = 0, bool indentNotChange = false)
+         string template = @"public static string Humanize(this TypeFullName obj, int indent = 0, bool ignoreIndentation = false)
 {
    if (obj == null)
       return ""(null)"";
-   StringBuilder sb = new StringBuilder(indentNotChange ? """" : "" Type = "" + obj.GetType().FullName);
-   var specialFlag = indentNotChange ? ""*"" : """";
+   StringBuilder sb = new StringBuilder(ignoreIndentation ? """" : "" Type = "" + obj.GetType().FullName);
+   var specialFlag = ignoreIndentation ? ""*"" : """";
    var prefix = Environment.NewLine + new string(' ', indent * 2) + ""["" + specialFlag;";
 
          _output.WriteLine(template.Replace("TypeFullName", type.FullName));
@@ -102,8 +129,11 @@ namespace ToolSet
          BeforeReturn(type, derivedTypes);
          _output.WriteLine("   return sb.ToString();");
          _output.WriteLine("}");
+         AfterReturn(type, derivedTypes);
          if (outputSaveInvoke)
-            _output.WriteLine(@"public static TReturn SafeInvoke<T, TReturn>(this T host, Func<T, TReturn> func)
+            _output.WriteLine(@"
+///////////////////// -- Help methods -- //////////////////////
+public static TReturn SafeInvoke<T, TReturn>(this T host, Func<T, TReturn> func)
 {
    if (func == null) return default(TReturn);
    try
@@ -129,14 +159,28 @@ public static string Humanize<T, TReturn>(this T host, Func<T, TReturn> func)
       return ex.Message;
    }
 }
-public static string Humanize(this object obj, int indent = 0, bool indentNotChange = false)
+public static string Humanize(this object obj, int indent = 0, bool ignoreIndentation = false)
 {
    if (obj == null)
       return ""(null)"";
-   StringBuilder sb = new StringBuilder(indentNotChange ? """" : "" Type = "" + obj.GetType().FullName);
+   StringBuilder sb = new StringBuilder(ignoreIndentation ? """" : "" Type = "" + obj.GetType().FullName);
    return sb + obj.ToString();
-}");
-         AfterReturn(type, derivedTypes);
+}
+static Regex regex = new Regex(@""\.?00+([,\)])"");
+public static string Truncate(this string text)
+{
+   if (text == null) return null;
+   return regex.Replace(text, m =>
+   {
+      return m.Groups[1].Value;
+   });
+}
+public static string Truncate(this object text)
+{
+   if (text == null) return null;
+   return Truncate(text.ToString());
+}
+");
       }
 
       protected virtual void AfterReturn(TypeDefinition type, IEnumerable<TypeDefinition> derivedTypes)
@@ -218,14 +262,14 @@ public static string Humanize(this object obj, int indent = 0, bool indentNotCha
                            case "System.Int32":
                            case "System.Int64":
                            case "System.Double":
-                              parameterCandidates.Add(new ParameterCan(parameterType,0));
-                              parameterCandidates.Add(new ParameterCan(parameterType,1));
+                              parameterCandidates.Add(new ParameterCan(parameterType, 0));
+                              parameterCandidates.Add(new ParameterCan(parameterType, 1));
                               break;
                            case "System.String":
-                              parameterCandidates.Add(new ParameterCan(parameterType,"SampleText"));
+                              parameterCandidates.Add(new ParameterCan(parameterType, "SampleText"));
                               break;
                            default:
-                              parameterCandidates.Add(new ParameterCan(parameterType,null));
+                              parameterCandidates.Add(new ParameterCan(parameterType, null));
                               break;
                         }
                      }
@@ -243,18 +287,21 @@ public static string Humanize(this object obj, int indent = 0, bool indentNotCha
                      result = tmpResult;
                   }
                }
+
+               var helper = TypeHumanizeHelper.CreateOrGetHelper(method.ReturnType);
                foreach (var one in result)
                {
                   //sb.AppendFormat(prefix + "[GetEndPoint(0)] {0} ", Humanize(SafeInvoke(obj, oo => oo.GetEndPoint(0)), indent + 1));
                   var methodCallString = method.Name + "(" + GetMethodCallString(one) + ")";
                   var start = "   sb.AppendFormat(prefix + \"";
-                  if (isBasicType(method.ReturnType))
-                     //_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", obj." + methodCallString + ");");
-                     _output.WriteLine(start + methodCallString + "] {0} \", SafeInvoke(obj, oo => oo." + methodCallString + "), indent + 1);");
-                  else
-                     //_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", prefix + Humanize(obj." + methodCallString + "));");
-                     _output.WriteLine(start + methodCallString + "] {0} \", Humanize(SafeInvoke(obj, oo => oo." + methodCallString + "), indent + 1));");
-                  //_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", prefix + Humanize(obj, oo => oo." + methodCallString + "));");
+                  _output.WriteLine(start + methodCallString + "] {0} \", " + helper.GetInvokeMethod(methodCallString) + ", indent + 1);");
+                  //if (isBasicType(method.ReturnType))
+                  //   //_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", obj." + methodCallString + ");");
+                  //   _output.WriteLine(start + methodCallString + "] {0} \", " + helper.GetInvokeMethod(methodCallString) + ", indent + 1);");
+                  //else
+                  //   //_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", prefix + Humanize(obj." + methodCallString + "));");
+                  //   _output.WriteLine(start + methodCallString + "] {0} \", " + helper.GetInvokeMethod(methodCallString) + ", indent + 1));");
+                  ////_output.WriteLine("   sb.AppendFormat(\"[" + methodCallString + "] {0} \", prefix + Humanize(obj, oo => oo." + methodCallString + "));");
                }
                break;
             }
@@ -273,12 +320,14 @@ public static string Humanize(this object obj, int indent = 0, bool indentNotCha
             var line = "";
             //sb.AppendFormat(prefix + "[GetEndPoint(0)] {0} ", Humanize(SafeInvoke(obj, oo => oo.GetEndPoint(0)), indent + 1));
             var start = "   sb.AppendFormat(prefix + \"";
-            if (isBasicType(prop.PropertyType))
-               //_output.WriteLine("   sb.AppendFormat(\"[" + prop.Name + "] {0} \", obj." + prop.Name + ");");
-               line = start + prop.Name + "] {0} \", SafeInvoke(obj, oo => oo." + prop.Name + "), indent + 1);";
-            else
-               line = start + prop.Name + "] {0} \", Humanize(SafeInvoke(obj, oo => oo." + prop.Name + "), indent + 1));";
-            //line = "   sb.AppendFormat(\"[" + prop.Name + "] {0} \", prefix + Humanize(obj, oo => oo." + prop.Name + "));";
+            var helper = TypeHumanizeHelper.CreateOrGetHelper(prop.PropertyType);
+            line = start + prop.Name + "] {0} \", " + helper.GetInvokeMethod(prop.Name) + ", indent + 1);";
+            //if (isBasicType(prop.PropertyType))
+            //   //_output.WriteLine("   sb.AppendFormat(\"[" + prop.Name + "] {0} \", obj." + prop.Name + ");");
+            //   line = start + prop.Name + "] {0} \", SafeInvoke(obj, oo => oo." + prop.Name + "), indent + 1);";
+            //else
+            //   line = start + prop.Name + "] {0} \", Humanize(SafeInvoke(obj, oo => oo." + prop.Name + "), indent + 1));";
+            ////line = "   sb.AppendFormat(\"[" + prop.Name + "] {0} \", prefix + Humanize(obj, oo => oo." + prop.Name + "));";
             if (prop.GetMethod.HasParameters)
             {
                line.Insert(3, "//");
@@ -313,19 +362,19 @@ public static string Humanize(this object obj, int indent = 0, bool indentNotCha
          return result;
       }
 
-      public virtual bool isBasicType(TypeReference typeReference)
-      {
-         var type = typeReference.Resolve();
-         switch (type.FullName)
-         {
-            case "System.String":
-            case "Autodesk.Revit.DB.XYZ":
-               return true;
-            default:
-               break;
-         }
-         return type.IsValueType;
-      }
+      //public virtual bool isBasicType(TypeReference typeReference)
+      //{
+      //   var type = typeReference.Resolve();
+      //   switch (type.FullName)
+      //   {
+      //      case "System.String":
+      //      case "Autodesk.Revit.DB.XYZ":
+      //         return true;
+      //      default:
+      //         break;
+      //   }
+      //   return type.IsValueType;
+      //}
 
       public virtual bool FilterMethod(MethodDefinition method)
       {
@@ -371,12 +420,14 @@ public static string Humanize(this object obj, int indent = 0, bool indentNotCha
       public override void DisassembleProperty(PropertyDefinition prop)
       {
          base.DisassembleProperty(prop);
+         var thh = TypeHumanizeHelper.CreateOrGetHelper(prop.PropertyType);
          if (level < 1) return;
          if (!referencedTypes.ContainsKey(prop.PropertyType.FullName))
          {
             if (prop.PropertyType.Resolve() == prop.DeclaringType)
                return;
-            if (isBasicType(prop.PropertyType))
+
+            if (thh.IsBasicType())
                return;
             referencedTypes.Add(prop.PropertyType.FullName, prop.PropertyType);
          }
@@ -419,6 +470,126 @@ public static string Humanize(this object obj, int indent = 0, bool indentNotCha
                .Replace("derivedTypeVariableName", char.ToLower(derivedType.Name[0]) + derivedType.Name.Substring(1));
             this.Output.WriteLine(code);
          }
+      }
+   }
+
+   public class TypeHumanizeHelperLib : Dictionary<string, TypeHumanizeHelper>
+   {
+   }
+
+   public class TypeHumanizeHelper
+   {
+      protected static Dictionary<string, TypeHumanizeHelper> Lib = new Dictionary<string, TypeHumanizeHelper>();
+      protected static TypeHumanizeHelper DefaultHelper = new TypeHumanizeHelper();
+      static TypeHumanizeHelper()
+      {
+         AddHelper(new StringTypeHumanizeHelper());
+         AddHelper(new XYZTypeHumanizeHelper());
+      }
+      static void AddHelper(TypeHumanizeHelper helper)
+      {
+         if (!Lib.ContainsKey(helper.FullTypeName))
+            Lib.Add(helper.FullTypeName, helper);
+      }
+
+      private string _fullTypeName;
+      private TypeReference _typeRef;
+      public string FullTypeName
+      {
+         get { return _fullTypeName; }
+         protected set { _fullTypeName = value; }
+      }
+      public TypeReference TypeRef
+      {
+         get { return _typeRef; }
+         set
+         {
+            _typeRef = value;
+            _fullTypeName = _typeRef.FullName;
+         }
+      }
+
+      public virtual bool IsBasicType()
+      {
+         if (_typeRef != null)
+         {
+            return _typeRef.IsValueType;
+         }
+         throw new Exception("TypeHelper not found!");
+      }
+
+      public static TypeHumanizeHelper GetHelper(string typeFullName)
+      {
+         if (Lib.ContainsKey(typeFullName))
+         {
+            return Lib[typeFullName];
+         }
+         return null;
+      }
+
+      public static TypeHumanizeHelper CreateOrGetHelper(TypeReference typeRef)
+      {
+         var txt = typeRef.FullName;
+         var helper = GetHelper(txt);
+         if (helper == null)
+         {
+            TypeHumanizeHelper th = typeRef.IsValueType ?
+               new BasicTypeHumanizeHelper()
+               : new TypeHumanizeHelper();
+            th.TypeRef = typeRef;
+            Lib.Add(typeRef.FullName, th);
+            return th;
+         }
+         else return helper;
+      }
+
+      public virtual string GetInvokeMethod(string methodCallString)
+      {
+         return "Humanize(SafeInvoke(obj, oo => oo." + methodCallString + "))";
+      }
+   }
+
+   public class BasicTypeHumanizeHelper : TypeHumanizeHelper
+   {
+      public override bool IsBasicType()
+      {
+         return true;
+      }
+      public override string GetInvokeMethod(string methodCallString)
+      {
+         return "SafeInvoke(obj, oo => oo." + methodCallString + ")";
+      }
+   }
+
+   public class StringTypeHumanizeHelper : TypeHumanizeHelper
+   {
+      public StringTypeHumanizeHelper()
+      {
+         FullTypeName = "System.String";
+      }
+      public override bool IsBasicType()
+      {
+         return true;
+      }
+      public override string GetInvokeMethod(string methodCallString)
+      {
+         return "SafeInvoke(obj, oo => oo." + methodCallString + ")";
+      }
+   }
+
+   public class XYZTypeHumanizeHelper : TypeHumanizeHelper
+   {
+      public XYZTypeHumanizeHelper()
+      {
+         FullTypeName = "Autodesk.Revit.DB.XYZ";
+      }
+      public override bool IsBasicType()
+      {
+         return true;
+      }
+      public override string GetInvokeMethod(string methodCallString)
+      {
+         return "SafeInvoke(obj, oo => oo." + methodCallString + ").Truncate()";
       }
    }
 }
